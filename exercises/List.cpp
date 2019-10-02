@@ -1,4 +1,6 @@
 #include <iostream>
+#include <memory>
+#include <stdexcept>
 
 using namespace std;
 
@@ -9,86 +11,162 @@ public:
         next(nullptr),
         value(v)
     {}
-
-    Node* next;
+    
+    std::shared_ptr<Node> next;
+    std::weak_ptr<Node> prev;
     int value;
 };
 
-class List
+class DoubleList
 {
 public:
-    List();
-    void add(Node* node);
-    Node* get(const int value);
+    DoubleList();
+    void addOnBegin(std::unique_ptr<Node> node);
+    void addOnEnd(std::unique_ptr<Node> node);
+    shared_ptr<Node> getFromBegin(const int value);
+    shared_ptr<Node> getFromEnd(const int value);
 
 private:
-    Node* first;
+    std::shared_ptr<Node> first, last;
 };
 
-List::List() :
-    first(nullptr)
+DoubleList::DoubleList() :
+    first(nullptr),
+    last(nullptr)
 {}
 
-void List::add(Node* node)
+void DoubleList::addOnBegin(std::unique_ptr<Node> node)
 {
+    std::shared_ptr<Node> temp(std::move(node));
     if(!first)
     {
-        first = node;
+        first = temp;
+        last = temp;
     }
     else
     {
-        Node* current = first;
-        while(current->next)
-        {
-            current = current->next;
-        }
-        current->next = node;
+        temp->next = first;
+        first->prev = temp;
+        first = temp;
     }
 }
 
-Node* List::get(const int value)
+void DoubleList::addOnEnd(std::unique_ptr<Node> node)
 {
+    std::shared_ptr<Node> temp(std::move(node));
     if(!first)
     {
-        cout << "List is empty!" << endl;
-        return nullptr;
+        first = temp;
+        last = temp;
     }
     else
     {
-        Node* current = first;
-        do
+        last->next = temp;
+        temp->prev = last;
+        last = temp;
+    }
+}
+
+std::shared_ptr<Node> DoubleList::getFromEnd(const int value)
+{
+    try
+    {
+        if(!last)
         {
-            if(current->value == value)
+            throw std::runtime_error("before get something add something.");
+        }
+        else
+        {
+            std::shared_ptr<Node> current = last;
+            do
             {
-                cout << "Found value " << current->value << endl;
-                return current;
-            }
-            else
+                auto weakPrev = (current->prev).lock();
+                if(current->value == value)
+                {
+                    cout << "Found value " << current->value << endl;
+                    return current;
+                }
+                else
+                {
+                    cout << "Going through " << current->value << endl;
+                    current = weakPrev;
+                }
+            } while(current);
+            cout << "Not found: value " << value << endl;
+            return nullptr;
+        }
+    }
+    catch (std::exception& e)
+    {
+        std::cout<<"Empty list! " << e.what() << std::endl;
+        return nullptr;
+    }
+}
+
+shared_ptr<Node> DoubleList::getFromBegin(const int value)
+{
+    try
+    {
+        if(!first)
+        {
+            throw std::runtime_error("before get something add something.");
+        }
+        else
+        {
+            std::shared_ptr<Node> current = first;
+            do
             {
-                cout << "Going through " << current->value << endl;
-                current = current->next;
-            }
-        } while(current);
-        cout << "Not found: value " << value << endl;
+                if(current->value == value)
+                {
+                    cout << "Found value " << current->value << endl;
+                    return current;
+                }
+                else
+                {
+                    cout << "Going through " << current->value << endl;
+                    current = current->next;
+                }
+            } while(current);
+            cout << "Not found: value " << value << endl;
+            return nullptr;
+        }
+    }
+    catch (std::exception& e)
+    {
+        std::cout<<"Empty list! " << e.what() << std::endl;
         return nullptr;
     }
 }
 
 int main()
 {
-    List lista;
-    Node* node4 = new Node(4);
-    Node* node7 = new Node(7);
+    DoubleList list1;
+    std::cout<< "Adding nodes on begin. Getting nodes from end." << std::endl; 
+    std::unique_ptr<Node> node4 {new Node(4)};
+    std::unique_ptr<Node> node7 {new Node(7)};
+    list1.addOnBegin(std::move(node4));
+    list1.addOnBegin(std::make_unique<Node>(2));
+    list1.addOnBegin(std::move(node7));
+    list1.addOnBegin(std::make_unique<Node>(9));
+    auto node1 = list1.getFromEnd(9);
+    if (node1)
+        cout << node1->value << '\n';
 
-    lista.add(node4);
-    lista.add(new Node(2));
-    lista.add(node7);
-    lista.add(new Node(9));
-    auto node = lista.get(1);
-
-    if (node)
-        cout << node->value << '\n';
-
+    std::cout<< "\nAdding nodes on end. Getting nodes from end." << std::endl; 
+    DoubleList list2;
+    std::unique_ptr<Node> node44 {new Node(44)};
+    std::unique_ptr<Node> node77 {new Node(77)};
+    list2.addOnEnd(std::move(node44));
+    list2.addOnEnd(make_unique<Node>(22));
+    list2.addOnEnd(std::move(node77));
+    list2.addOnEnd(make_unique<Node>(99));
+    auto node2 = list2.getFromEnd(99);
+    if (node2)
+        cout << node2->value << '\n';
+   
+    DoubleList list3;
+    std::cout << "\nGetting node from empty list." << std::endl;
+    auto node3 = list3.getFromEnd(1);
+ 
     return 0;
 }
-
